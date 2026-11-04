@@ -17,6 +17,7 @@ What's new in each version of StykAnimate.
 - A new Home page to start an animation in landscape, vertical or square, reopen your projects and organize them with pins and folders.
 - Five short interactive tutorials that guide you step by step through the canvas, posing, the timeline and the panels.
 - Right-click a joint and choose Disconnect segment to turn that part of a figure into a figure of its own.
+- Turn on the assistant connection in Settings to let a local AI assistant run commands, inspect your scene, watch for edits and see rendered frames.
 
 ### Changed
 

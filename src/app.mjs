@@ -6421,21 +6421,17 @@ async function init() {
         bridgeRenderer = new ThumbnailRenderer(editor, {baseURL: importer.baseURL, token: importer.token, onError: () => {}});
         agentBridgeRenderers.set(key, bridgeRenderer);
       }
+      const bound = 512, scale = Math.min(1, bound / Math.max(report.canvas_width || 800, report.canvas_height || 450));
       const scene = document.createElement('canvas');
-      scene.width = report.canvas_width || 800;
-      scene.height = report.canvas_height || 450;
-      const bound = 512, scale = Math.min(1, bound / Math.max(scene.width, scene.height));
-      const preview = document.createElement('canvas');
-      preview.width = Math.max(1, Math.round(scene.width * scale));
-      preview.height = Math.max(1, Math.round(scene.height * scale));
+      scene.width = Math.max(1, Math.round((report.canvas_width || 800) * scale));
+      scene.height = Math.max(1, Math.round((report.canvas_height || 450) * scale));
       const images = [];
       for (const tick of ticks) {
         const index = Math.max(0, rows.findLastIndex(row => row.start <= tick));
         if (!await bridgeRenderer.renderThumbnail(index, scene, {tick, storedFrames: false})) return {ok: false, error: 'the frame render was cancelled'};
-        preview.getContext('2d').drawImage(scene, 0, 0, preview.width, preview.height);
-        images.push({frame: tick + 1, image: preview.toDataURL('image/png')});
+        images.push({frame: tick + 1, image: scene.toDataURL('image/png')});
       }
-      return {ok: true, frames: images, size: {x: scene.width, y: scene.height}};
+      return {ok: true, frames: images, size: {x: report.canvas_width || 800, y: report.canvas_height || 450}};
     },
     snapshot() {
       const report = editor.report;
@@ -6496,8 +6492,13 @@ async function init() {
     status: () => Boolean(window.stykDesktop?.agentBridgeState),
   };
   if (desktop?.onAgentBridgeMessage && desktop?.sendAgentBridgeMessage) {
-    desktop.onAgentBridgeMessage(({connId, message}) => {
-      const reply = agentBridgeCallback(message);
+    desktop.onAgentBridgeMessage(async ({connId, message}) => {
+      let reply;
+      try {
+        reply = await agentBridgeCallback(message);
+      } catch (error) {
+        reply = {ok: false, error: 'handler failed', detail: String(error?.message ?? error)};
+      }
       desktop.sendAgentBridgeMessage({connId, reply});
     });
     desktop.onAgentBridgeClosed?.(({connId}) => {

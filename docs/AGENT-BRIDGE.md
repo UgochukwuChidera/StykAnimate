@@ -1,6 +1,30 @@
 # Agent bridge (design)
 
-*Status: design, not yet implemented. This document records the intended contract so it can be reviewed before code exists.*
+*Status: bridge transport implemented; contract dispatcher and app wiring not yet. This document records the intended contract so it can be reviewed as the bridge grows.*
+
+## Milestone 1 — transport host (implemented)
+
+`src/agent-bridge/host.mjs` implements the loopback transport the rest of the bridge builds on, with nothing inside calling the editor yet:
+
+- `AgentBridgeHost.start()` binds `127.0.0.1` on an ephemeral port, generates the per-launch 128-bit token and writes the discovery record before answering any upgrade. `stop()` closes clients with a grace period, terminates laggards and removes the record.
+- Upgrades verify the host header (loopback literals only), the origin (nothing, `null`, or the app's own loopback origin) and the connection budget before `ws` takes the socket; broken keys are rejected by `ws` itself with 400.
+- The first frame must say `hello`: wrong token → 4401 with a delay after repeated failures, ten failures → 4403 lockout for sixty seconds, wrong schema → 4409, malformed or silent → 4400.
+- Records live in `~/.styk-animate/bridge/` as `instance-<pid>.json`, written atomically with 0600; `sweepStaleRecords()` prunes files whose PID is gone.
+- `ws@8.22.0` moved from devDependencies to dependencies for the packaged app.
+
+Tests: `npm run test:agent-bridge` (alias `tests/agent-bridge-host.test.mjs`), covering record lifecycle, token auth and lockout, origin/host gates, close codes and the sweep.
+
+### Removal and porting
+
+Everything the bridge owns lives in one place, so deleting it is mechanical:
+
+| Owner | What |
+| --- | --- |
+| `src/agent-bridge/` | The whole module; nothing else imports it yet |
+| `tests/agent-bridge-host.test.mjs` | Its tests |
+| `package.json` | `ws` in dependencies and the `test:agent-bridge` script |
+
+Future wiring (settings toggle, dispatcher registration in `app.mjs`) lands as additive hooks listed in this table, so the app never carries a sprawl of bridge conditions. Deleting the module, its test file and those hooks restores the exact upstream behavior and keeps fork merges conflict-free.
 
 The agent bridge is an opt-in, self-contained module that lets an external agent — any AI or script — work in the editor the same way a person does: discover what can be done, perform edits, look at the rendered result, and revise. The person gives creative direction; the agent does the work. The bridge follows the same principle as the command palette: it is a client of the command catalog, never a second editing path.
 

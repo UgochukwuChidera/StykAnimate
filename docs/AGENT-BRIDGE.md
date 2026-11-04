@@ -35,6 +35,17 @@ Desktop wiring keeps the app's boundary shape:
 
 Tests: `tests/agent-bridge-dispatcher.test.mjs` covers the list/invoke/undo/redo surface, the unavailable and failure paths, and that malformed or pending messages run nothing.
 
+## Milestone 4 — observe paths (implemented)
+
+The dispatcher accepts injected handlers; ops missing a handler stay honest "not supported yet" replies (the browser has none). `src/app.mjs` supplies them next to the glue:
+
+- `render` asks the thumbnail worker for up to 8 frames by tick into an offscreen scene canvas, downscales to at most 512px on the long side and returns PNG data URLs. Its renderer is created lazily with the importer's base URL/token and shared per connection base, so the filmstrip's own LRU is untouched.
+- `snapshot` returns a bounded overview — revision, tick, total ticks, fps, canvas size, background, layers, selection and up to 512 evaluated objects carrying only whitelisted native fields (`unique_id`, `figure_type_id`, position, scale, colour override, native transparency, and the figure name). No full-document serialization ever runs on this path.
+- `seek` moves the playhead through the app's own `goToFrame` (1-based numbers, the timeline's own numbering).
+- `events` subscribes one connection to editor change narration — throttled to at most one message per 100 ms, carrying revision, dirty state and undo status — and unsubscribes when the socket closes.
+
+Tests: dispatcher delegation, async handler resolution, and failure envelopes are covered in `tests/agent-bridge-dispatcher.test.mjs`.
+
 ### Removal and porting
 
 Everything the bridge owns lives in one place, so deleting it is mechanical:
@@ -46,7 +57,7 @@ Everything the bridge owns lives in one place, so deleting it is mechanical:
 | `package.json` | `ws` in dependencies and the `test:agent-bridge` script |
 | `desktop/main.cjs` | The host lifecycle and relay handlers (`agentBridge*` functions, `styk:agent-bridge-*` IPC, one `will-quit` hook) |
 | `desktop/preload.cjs` | The five `agent-bridge` bridge functions in `stykDesktop` |
-| `src/app.mjs` | The `agentBridge*` glue right after `home.start()` and one `agentBridge` line in the settings change handler |
+| `src/app.mjs` | The `agentBridge*` glue right after `home.start()` (including the render/snapshot/seek/events handlers) and one `agentBridge` line in the settings change handler |
 | `src/settings.mjs` | The `agentBridge` default and persisted-key entry |
 | `src/locales/en-features/settings.mjs` | Three `settings.assistant`/`settings.agentBridge*` messages |
 
@@ -100,7 +111,7 @@ One message in, one outcome out. Every mutation is a history entry, so agent mis
     "changedFrames": [4, 5], "historyDepth": 7 }
 ```
 
-`historyDepth` counts undo steps, letting an agent measure and roll back its own attempts. Undo and redo are ordinary operations.
+`historyDepth` counts undo steps, letting an agent measure and roll back its own attempts. Undo and redo are ordinary operations. The desktop build also answers `seek` (1-based frame), `snapshot` (bounded scene overview), `render` (frame previews as PNG data URLs) and `events` (edit narration per connection).
 
 ### 3. Observe
 

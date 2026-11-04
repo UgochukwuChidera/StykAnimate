@@ -6397,8 +6397,99 @@ async function init() {
   // Home shows first, over the editor that goes on starting behind it, unless the launch or the person's setting says otherwise.
   home.start();
   // The agent bridge (docs/AGENT-BRIDGE.md): a person's opt-in Settings toggle
-  // relays loopback messages through the same registry clicks run.
-  const agentBridgeDispatcher = new AgentDispatcher({registry: commands, editor});
+  // relays loopback messages through the same registry clicks run. Handlers give
+  // the agent its senses: render a frame, read the scene, seek, watch for edits.
+  const agentBridgeEvents = new Map();
+  const agentBridgeRenderers = new Map();
+  const agentBridgeStatus = () => agentBridgeDispatcher.status();
+  const agentBridgeHandlers = {
+    async render(message) {
+      const rows = editor.timeline;
+      const total = editor.totalTicks;
+      if (!total) return {ok: false, error: 'the document has no frames yet'};
+      const requested = Array.isArray(message?.frames) ? message.frames : [editor.tick + 1];
+      const ticks = [];
+      for (const frame of requested.slice(0, 8)) {
+        const number = Number(frame);
+        if (!Number.isInteger(number) || number < 1) return {ok: false, error: 'frames are 1-based frame numbers'};
+        ticks.push(Math.min(number, total));
+      }
+      const report = editor.report;
+      const key = `${importer.baseURL ?? ''}`;
+      let bridgeRenderer = agentBridgeRenderers.get(key);
+      if (!bridgeRenderer) {
+        bridgeRenderer = new ThumbnailRenderer(editor, {baseURL: importer.baseURL, token: importer.token, onError: () => {}});
+        agentBridgeRenderers.set(key, bridgeRenderer);
+      }
+      const scene = document.createElement('canvas');
+      scene.width = report.canvas_width || 800;
+      scene.height = report.canvas_height || 450;
+      const bound = 512, scale = Math.min(1, bound / Math.max(scene.width, scene.height));
+      const preview = document.createElement('canvas');
+      preview.width = Math.max(1, Math.round(scene.width * scale));
+      preview.height = Math.max(1, Math.round(scene.height * scale));
+      const images = [];
+      for (const tick of ticks) {
+        const index = Math.max(0, rows.findLastIndex(row => row.start <= tick));
+        if (!await bridgeRenderer.renderThumbnail(index, scene, {tick, storedFrames: false})) return {ok: false, error: 'the frame render was cancelled'};
+        preview.getContext('2d').drawImage(scene, 0, 0, preview.width, preview.height);
+        images.push({frame: tick + 1, image: preview.toDataURL('image/png')});
+      }
+      return {ok: true, frames: images, size: {x: scene.width, y: scene.height}};
+    },
+    snapshot() {
+      const report = editor.report;
+      return {ok: true, document: {
+        revision: editor.revision,
+        tick: editor.tick,
+        totalTicks: editor.totalTicks,
+        fps: report.frame_delay_ms ? 1000 / report.frame_delay_ms : report.fps,
+        canvas: {x: report.canvas_width, y: report.canvas_height},
+        backgroundColor: report.background_color,
+        layers: (editor.layers ?? []).map(layer => ({id: layer.id, name: layer.name, kind: layer.kind})),
+        selection: [...selection()],
+        objects: (editor.evaluatedFrame?.objects ?? []).slice(0, 512).map(object => (Object.fromEntries(
+          ['unique_id', 'figure_type_id', 'root_x', 'root_y', 'scale', 'color_override_raw', 'field28']
+            .filter(field => object[field] !== undefined)
+            .map(field => [field, object[field]]).concat([['name', nameOf(object)]])
+        ))),
+      }, status: agentBridgeStatus()};
+    },
+    seek(message) {
+      const frame = Number(message?.frame);
+      if (!Number.isInteger(frame) || frame < 1) return {ok: false, error: 'specify a whole frame number, 1 or higher'};
+      goToFrame(frame);
+      return {ok: true, frame: Math.min(frame, editor.totalTicks || frame), status: agentBridgeStatus()};
+    },
+    events(message, {connId} = {}) {
+      if (message?.unsubscribe) {
+        agentBridgeEvents.get(connId)?.();
+        agentBridgeEvents.delete(connId);
+        return {ok: true, subscribed: false};
+      }
+      if (agentBridgeEvents.has(connId)) return {ok: true, subscribed: true};
+      let pending = null;
+      const notify = () => {
+        pending = null;
+        desktop?.sendAgentBridgeMessage?.({connId, event: {
+          op: 'event', kind: 'change',
+          revision: editor.revision, dirty: editor.dirty, ...agentBridgeStatus(),
+        }});
+      };
+      const listener = () => {
+        if (pending) return;
+        pending = setTimeout(notify, 100);
+      };
+      editor.addEventListener('change', listener);
+      agentBridgeEvents.set(connId, () => {
+        clearTimeout(pending);
+        pending = null;
+        editor.removeEventListener('change', listener);
+      });
+      return {ok: true, subscribed: true};
+    },
+  };
+  const agentBridgeDispatcher = new AgentDispatcher({registry: commands, editor, handlers: agentBridgeHandlers});
   const agentBridgeCallback = (message) => agentBridgeDispatcher.handle(message ?? {});
   window.styk.agentBridge = {
     dispatch: agentBridgeCallback,
@@ -6408,6 +6499,10 @@ async function init() {
     desktop.onAgentBridgeMessage(({connId, message}) => {
       const reply = agentBridgeCallback(message);
       desktop.sendAgentBridgeMessage({connId, reply});
+    });
+    desktop.onAgentBridgeClosed?.(({connId}) => {
+      agentBridgeEvents.get(connId)?.();
+      agentBridgeEvents.delete(connId);
     });
     if (state.settings.agentBridge && desktop?.setAgentBridge) void desktop.setAgentBridge(true);
   }

@@ -5,11 +5,12 @@ export const AGENT_SOURCE = 'agent';
 const PENDING_OPS = new Set(['render', 'snapshot', 'events']);
 
 export class AgentDispatcher {
-  constructor({registry, editor = null, send = () => {}} = {}) {
+  constructor({registry, editor = null, send = () => {}, handlers = {}} = {}) {
     if (!registry) throw new Error('dispatcher needs a command registry');
     this.registry = registry;
     this.editor = editor;
     this.send = send;
+    this.handlers = handlers;
   }
 
   status() {
@@ -36,7 +37,12 @@ export class AgentDispatcher {
     });
   }
 
-  handle(message) {
+  ops() {
+    return [...AGENT_OPS, ...Object.keys(this.handlers)];
+  }
+
+  /** Returns a reply for registry ops; a handler op resolves through its handler. */
+  handle(message, context = {}) {
     const reply = baseReply(message);
     if (!message || typeof message !== 'object' || typeof message.op !== 'string') {
       reply.ok = false;
@@ -45,16 +51,17 @@ export class AgentDispatcher {
     }
     if (message.op === 'list') {
       reply.ok = true;
-      reply.ops = [...AGENT_OPS];
+      reply.ops = this.ops();
       reply.commands = this.commandRows();
       reply.status = this.status();
       return reply;
     }
-    if (!AGENT_OPS.includes(message.op) && !PENDING_OPS.has(message.op)) {
+    if (!AGENT_OPS.includes(message.op) && !PENDING_OPS.has(message.op) && !(message.op in this.handlers)) {
       reply.ok = false;
       reply.error = 'unknown op';
       return reply;
     }
+    if (message.op in this.handlers) return this.delegate(message, context, reply);
     if (PENDING_OPS.has(message.op)) {
       reply.ok = false;
       reply.error = `${message.op} is not supported yet`;
@@ -67,6 +74,16 @@ export class AgentDispatcher {
       return reply;
     }
     return this.invoke(command, reply);
+  }
+
+  delegate(message, context, reply) {
+    let outcome;
+    try { outcome = this.handlers[message.op](message, context); }
+    catch (error) { return failed(reply, message, error); }
+    if (outcome && typeof outcome.then === 'function') {
+      return outcome.then(value => ({...baseReply(message), ...value})).catch(error => failed(reply, message, error));
+    }
+    return {...baseReply(message), ...(outcome && typeof outcome === 'object' ? outcome : {ok: false, error: 'handler produced no reply'})};
   }
 
   invoke(command, reply) {
@@ -105,4 +122,8 @@ function baseReply(message) {
   const reply = {bridge: BRIDGE_NAME, schema: BRIDGE_SCHEMA};
   if (message && typeof message === 'object' && Number.isInteger(message.seq)) reply.seq = message.seq;
   return reply;
+}
+
+function failed(reply, message, error) {
+  return {...baseReply(message), ok: false, error: 'handler failed', op: typeof message?.op === 'string' ? message.op : null, detail: String(error?.message ?? error)};
 }

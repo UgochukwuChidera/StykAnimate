@@ -104,3 +104,33 @@ test('the dispatcher pushes nothing on its own; send stays the bridge side', () 
   dispatcher.handle({op: 'list'});
   assert.equal(sent, 0, 'handle returns replies; the glue decides delivery');
 });
+
+test('injected handlers answer their ops with the envelope filled in', async () => {
+  const dispatcher = new AgentDispatcher({
+    registry: fakeRegistry(),
+    handlers: {snapshot: () => ({ok: true, document: {}})},
+  });
+  const reply = dispatcher.handle({op: 'snapshot', seq: 3});
+  assert.equal(reply.ok, true);
+  assert.equal(reply.seq, 3);
+  assert.equal(reply.bridge, BRIDGE_NAME);
+  assert.ok(dispatcher.ops().includes('snapshot'));
+});
+
+test('async handlers resolve and their failures become clean replies', async () => {
+  const working = new AgentDispatcher({registry: fakeRegistry(), handlers: {render: async () => ({ok: true, frames: []})}});
+  assert.deepEqual((await working.handle({op: 'render', seq: 1})).frames, []);
+  const broken = new AgentDispatcher({registry: fakeRegistry(), handlers: {render: () => { throw new Error('gpu off'); }}});
+  const failure = await broken.handle({op: 'render', seq: 2});
+  assert.equal(failure.ok, false);
+  assert.equal(failure.error, 'handler failed');
+  assert.equal(failure.seq, 2);
+  assert.equal(failure.detail, 'gpu off');
+});
+
+test('handlers receive the connection context so pushes know their client', async () => {
+  const seen = [];
+  const dispatcher = new AgentDispatcher({registry: fakeRegistry(), handlers: {events: (message, context) => { seen.push(context); return {ok: true}; }}});
+  await dispatcher.handle({op: 'events'}, {connId: 7});
+  assert.deepEqual(seen, [{connId: 7}]);
+});

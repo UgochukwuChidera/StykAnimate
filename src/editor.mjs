@@ -189,6 +189,7 @@ export class Editor extends EventTarget {
     return geometry;
   }
   get canRedo() { return this._redo.length > 0; }
+  get historyDepth() { return this._undo.length; }
   get undoLabel() { return this._undo.at(-1)?.label ?? ''; }
   get redoLabel() { return this._redo.at(-1)?.label ?? ''; }
   get dirty() { return this._revision !== this._savedRevision || Boolean(this._drag?.changed || this._animationEdit?.changed) || Boolean(this._movieclipScopes?.some(scope=>scope.parent._revision!==scope.parent._savedRevision)); }

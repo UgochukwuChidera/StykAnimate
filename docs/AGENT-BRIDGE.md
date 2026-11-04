@@ -14,6 +14,12 @@
 
 Tests: `npm run test:agent-bridge` (alias `tests/agent-bridge-host.test.mjs`), covering record lifecycle, token auth and lockout, origin/host gates, close codes and the sweep.
 
+## Milestone 2 — manifest from the command catalog (implemented)
+
+`src/agent-bridge/manifest.mjs` builds the schema-v1 manifest from `HOTKEY_COMMANDS` by construction: one entry per catalog command in catalog order, carrying `id`, `label`, `category`, `scope`, `defaults`, and the `repeat`/`hold`/`extraShift` flags. Runtime availability still lives with the dispatcher (milestone 3); the static manifest is what an agent reads to know the vocabulary. Repeated ids throw. The host includes the manifest in its hello reply when given one and stays minimal otherwise. Adding a catalog command flows into the manifest automatically; a schema bump is only needed when the manifest's *shape* changes, which is the contract the agents depend on.
+
+Tests: `tests/agent-bridge-manifest.test.mjs` verifies the mirror is exact (ids, order, fields, scopes valid per `HOTKEY_SCOPES`), that duplicate ids are rejected, and that the hello reply carries the manifest.
+
 ### Removal and porting
 
 Everything the bridge owns lives in one place, so deleting it is mechanical:
@@ -21,7 +27,7 @@ Everything the bridge owns lives in one place, so deleting it is mechanical:
 | Owner | What |
 | --- | --- |
 | `src/agent-bridge/` | The whole module; nothing else imports it yet |
-| `tests/agent-bridge-host.test.mjs` | Its tests |
+| `tests/agent-bridge-host.test.mjs`, `tests/agent-bridge-manifest.test.mjs` | Its tests |
 | `package.json` | `ws` in dependencies and the `test:agent-bridge` script |
 
 Future wiring (settings toggle, dispatcher registration in `app.mjs`) lands as additive hooks listed in this table, so the app never carries a sprawl of bridge conditions. Deleting the module, its test file and those hooks restores the exact upstream behavior and keeps fork merges conflict-free.
@@ -150,7 +156,7 @@ A browser tab cannot read the token file. Two modes, one contract: a person past
 ## Verification (planned, once implemented)
 
 - Bridge auth unit tests: token rounds, origin/host rejection, backoff and lockout, close codes.
-- Contract tests: manifest matches the command catalog by construction; a catalog change fails the test, forcing the schema-bump decision.
+- Contract tests: the manifest mirrors the command catalog by construction; the manifest test catches shape drift, and a schema bump signals breaking contract changes.
 - Lifecycle tests: toggle on/off, multi-instance records, stale sweep after a killed process.
 - Command parity: invoking through the bridge equals invoking through the palette for both outcome and history depth.
 - Transport budgets: snapshots and renders reuse existing budgets; a browser test asserts no whole-document cloning on the bridge path.

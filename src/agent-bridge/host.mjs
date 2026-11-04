@@ -25,6 +25,7 @@ const DEFAULTS = Object.freeze({
   appVersion: null,
   projectLabel: null,
   instanceLabel: null,
+  manifest: null,
   onAuthenticated: null,
   onMessage: null,
 });
@@ -213,6 +214,8 @@ export class AgentBridgeHost {
     const context = {ip, hello};
     this.options.onMessage?.(ws, hello, context);
     this.options.onAuthenticated?.(ws, hello, context);
-    this.send(ws, {ok: true, bridge: BRIDGE_NAME, schema: BRIDGE_SCHEMA, pid: process.pid, version: this.options.appVersion});
+    const reply = {ok: true, bridge: BRIDGE_NAME, schema: BRIDGE_SCHEMA, pid: process.pid, version: this.options.appVersion};
+    if (this.options.manifest) reply.manifest = this.options.manifest;
+    this.send(ws, reply);
   }
 }

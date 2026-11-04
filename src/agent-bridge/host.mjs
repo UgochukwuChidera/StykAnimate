@@ -25,7 +25,7 @@ const DEFAULTS = Object.freeze({
   onMessage: null,
 });
 
-function defaultRecordsDir() { return path.join(os.homedir(), '.styk-animate', 'bridge'); }
+function defaultRecordsDir() { return process.env.STYK_BRIDGE_DIR || path.join(os.homedir(), '.styk-animate', 'bridge'); }
 function recordName(pid) { return `instance-${pid}.json`; }
 
 function alivePid(pid) {

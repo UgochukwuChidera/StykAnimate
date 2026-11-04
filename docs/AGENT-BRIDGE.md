@@ -184,10 +184,13 @@ A browser tab cannot read the token file. Two modes, one contract: a person past
 - Windows file permissions are weaker than 0600: a different local user reading the token is an OS-level problem the bridge cannot fix. The token stops same-user promiscuous processes, which is the realistic threat.
 - Visual judgment ("does this look good?") is not a bridge feature; it emerges from the render-observe loop the bridge makes cheap.
 
-## Verification (planned, once implemented)
+## Verification
 
-- Bridge auth unit tests: token rounds, origin/host rejection, backoff and lockout, close codes.
-- Contract tests: the manifest mirrors the command catalog by construction; the manifest test catches shape drift, and a schema bump signals breaking contract changes.
-- Lifecycle tests: toggle on/off, multi-instance records, stale sweep after a killed process.
+The transport, dispatcher and observe paths have their unit tests: `npm run test:agent-bridge` (the host: record lifecycle, token auth and lockout, origin/host gates, close codes, the stale sweep), `tests/agent-bridge-dispatcher.test.mjs` (the list/invoke/undo/redo surface, denied and failing commands, handler envelopes) and `tests/agent-bridge-manifest.test.mjs` (the manifest mirrors the command catalog by construction, so shape drift and schema breaks are caught).
+
+The desktop app is exercised end to end by one smoke: `npm run test:agent-bridge:desktop` boots Electron with an isolated profile and `STYK_BRIDGE_DIR` inside the run's artifacts folder, enables the bridge through Settings, picks the discovery record by the main process pid and connects from plain Node. It checks the hello greeting, the command list, invoke add-frame and undo against the editor's live frame count, snapshot, seek, render (PNG data URL) and a denied invoke, then toggles the bridge off and asserts the record disappears and the socket closes with a clean close code. Artifact: `artifacts/agent-bridge-desktop/report.json`.
+
+Still planned, once implemented:
+
 - Command parity: invoking through the bridge equals invoking through the palette for both outcome and history depth.
-- Transport budgets: snapshots and renders reuse existing budgets; a browser test asserts no whole-document cloning on the bridge path.
+- Web-build checks: the same end-to-end drive against the browser build's discovery flow.

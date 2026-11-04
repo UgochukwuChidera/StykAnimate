@@ -257,7 +257,7 @@
   "app.compatibilityMode": {
     "locations": [
       "src/app.mjs:2022",
-      "src/app.mjs:6917"
+      "src/app.mjs:6918"
     ],
     "context": "if (state.renderer.stats?.backend === \"Canvas 2D fallback\") localizedText($(\"renderer-label\"), \"app.compatibilityMode\");"
   },
@@ -409,7 +409,7 @@
   },
   "app.editorReadyFileServiceUnavailable": {
     "locations": [
-      "src/app.mjs:6814"
+      "src/app.mjs:6815"
     ],
     "context": "status({messageKey: \"app.editorReadyFileServiceUnavailable\", messageParams: {}}, true);"
   },
@@ -511,8 +511,8 @@
     "locations": [
       "src/app.mjs:4384",
       "src/app.mjs:5248",
-      "src/app.mjs:6692",
-      "src/app.mjs:6708"
+      "src/app.mjs:6693",
+      "src/app.mjs:6709"
     ],
     "context": "if (builderMode?.active) return toast(interfaceText(\"app.finishTheFigureOrReturnToAnimateTo2\"), \"app.finishTheFigureOrReturnToAnimateTo2\", {});"
   },
@@ -739,7 +739,7 @@
   },
   "app.loadingThePivotConverterFirstUseOnly": {
     "locations": [
-      "src/app.mjs:6805"
+      "src/app.mjs:6806"
     ],
     "context": "if (state === \"loading\") status(stage === \"runtime\" ? {messageKey: \"app.loadingThePivotConverterFirstUseOnly\", messageParams: {}} : {messageKey: \"app.startingTh"
   },
@@ -987,7 +987,7 @@
   },
   "app.preparingCanvasAndEffects": {
     "locations": [
-      "src/app.mjs:6775"
+      "src/app.mjs:6776"
     ],
     "context": "status({messageKey: \"app.preparingCanvasAndEffects\", messageParams: {}}, false, true);"
   },
@@ -1022,14 +1022,14 @@
       "src/app.mjs:2172",
       "src/app.mjs:3652",
       "src/app.mjs:3911",
-      "src/app.mjs:6788",
-      "src/app.mjs:6923"
+      "src/app.mjs:6789",
+      "src/app.mjs:6924"
     ],
     "context": "onReady(){state.editingPacket=null;status({messageKey: \"app.ready\", messageParams: {}});warmPlayback();},"
   },
   "app.reconnectCanvas": {
     "locations": [
-      "src/app.mjs:6949"
+      "src/app.mjs:6950"
     ],
     "context": "localizedMarkup($(\"renderer-error\"), `<p data-i18n=\"app.theGraphicsDeviceWasResetReconnectingYourCanvas\">${messageHTML(\"app.theGraphicsDeviceWasResetReconnectin"
   },
@@ -1277,7 +1277,7 @@
   },
   "app.startingThePivotConverter": {
     "locations": [
-      "src/app.mjs:6805"
+      "src/app.mjs:6806"
     ],
     "context": "if (state === \"loading\") status(stage === \"runtime\" ? {messageKey: \"app.loadingThePivotConverterFirstUseOnly\", messageParams: {}} : {messageKey: \"app.startingTh"
   },
@@ -1337,19 +1337,19 @@
   },
   "app.theCanvasCouldNotReconnectYourAnimationIs": {
     "locations": [
-      "src/app.mjs:6861"
+      "src/app.mjs:6862"
     ],
     "context": "localizedText($(\"renderer-error\").querySelector('p'), \"app.theCanvasCouldNotReconnectYourAnimationIs\", {});"
   },
   "app.theCanvasUsesCompatibilityRenderingWhichCanBe": {
     "locations": [
-      "src/app.mjs:6927"
+      "src/app.mjs:6928"
     ],
     "context": "toasts.show({ message: interfaceText(\"app.theCanvasUsesCompatibilityRenderingWhichCanBe\", {value:reason}), messageKey: \"app.theCanvasUsesCompatibilityRenderingW"
   },
   "app.theGraphicsDeviceWasResetReconnectingYourCanvas": {
     "locations": [
-      "src/app.mjs:6949"
+      "src/app.mjs:6950"
     ],
     "context": "localizedMarkup($(\"renderer-error\"), `<p data-i18n=\"app.theGraphicsDeviceWasResetReconnectingYourCanvas\">${messageHTML(\"app.theGraphicsDeviceWasResetReconnectin"
   },
@@ -1436,7 +1436,7 @@
   },
   "app.valueCanvasCompatibilityRenderingIsActive": {
     "locations": [
-      "src/app.mjs:6921"
+      "src/app.mjs:6922"
     ],
     "context": "if (compatibility) localizedAttribute($(\"renderer-label\"), 'title', 'app.valueCanvasCompatibilityRenderingIsActive', {value:reason});"
   },
@@ -1466,7 +1466,7 @@
   },
   "app.webgpuIsUnavailable": {
     "locations": [
-      "src/app.mjs:6920"
+      "src/app.mjs:6921"
     ],
     "context": "const reason = message.reasonKey ? {messageKey:message.reasonKey, messageParams:message.reasonParams} : message.reason || {messageKey:\"app.webgpuIsUnavailable\"}"
   },
@@ -12094,14 +12094,14 @@
   },
   "errors.app.selectionChangedReopenTheColorPicker": {
     "locations": [
-      "src/app.mjs:6980",
-      "src/app.mjs:6987"
+      "src/app.mjs:6981",
+      "src/app.mjs:6988"
     ],
     "context": "if(editor.report!==report||editor.tick!==tick||[...editor.selectedUids].join(',')!==uids)throw messageError(new Error(''), \"errors.app.selectionChangedReopenThe"
   },
   "errors.app.selectionChangedReopenThePalette": {
     "locations": [
-      "src/app.mjs:6973"
+      "src/app.mjs:6974"
     ],
     "context": "if(editor.report!==report||editor.selectedUid!==uid||editor.figure!==figure||editor.tick!==tick)throw messageError(new Error(''), \"errors.app.selectionChangedRe"
   },
@@ -12131,7 +12131,7 @@
   },
   "errors.app.theGraphicsDeviceWasLost": {
     "locations": [
-      "src/app.mjs:6932"
+      "src/app.mjs:6933"
     ],
     "context": "telemetry.error(Object.assign(messageError(new Error(''), \"errors.app.theGraphicsDeviceWasLost\", {}), { name: 'GPUError', telemetryCode: 'device_lost' }), 'gpu'"
   },
@@ -31222,7 +31222,7 @@
   "rendererStatus.deviceLost": {
     "locations": [
       "src/app.mjs:2023",
-      "src/app.mjs:6918"
+      "src/app.mjs:6919"
     ],
     "context": "else if (state.renderer.stats?.backend === \"WebGPU device lost\") localizedText($(\"renderer-label\"), \"rendererStatus.deviceLost\");"
   },
@@ -31240,7 +31240,7 @@
   },
   "rendererStatus.reconnectionFailed": {
     "locations": [
-      "src/app.mjs:6892"
+      "src/app.mjs:6893"
     ],
     "context": "fallbackReason: `Graphics reconnection failed: ${error.message}`, fallbackReasonKey:'rendererStatus.reconnectionFailed',"
   },

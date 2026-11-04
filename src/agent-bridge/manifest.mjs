@@ -1,4 +1,4 @@
-import {BRIDGE_NAME, BRIDGE_SCHEMA} from './host.mjs';
+import {BRIDGE_NAME, BRIDGE_SCHEMA} from './constants.mjs';
 import {HOTKEY_COMMANDS, HOTKEY_SCOPES} from '../hotkeys.mjs';
 
 export const BRIDGE_OPS = ['list', 'invoke', 'undo', 'redo', 'render', 'snapshot', 'events'];

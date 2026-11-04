@@ -13,5 +13,8 @@ export default Object.freeze({
   "settings.chooseWhetherPastedFiguresKeepTheirCopiedDepth": "Choose whether pasted figures keep their copied depth or appear in front of other figures on the destination layer.",
   "settings.duplication": "Duplication",
   "settings.linkedInstancesShareFigureEditsMadeInBuild": "Linked instances share figure edits made in Build. Independent copies have their own figure. Both can be posed and moved separately.",
-  "settings.sizePx": "{size}px"
+  "settings.sizePx": "{size}px",
+  "settings.assistant": "Assistant connection",
+  "settings.agentBridge": "Let AI assistants on this computer connect",
+  "settings.agentBridgeNote": "A local, secret-key connection that works only while the app is open."
 });

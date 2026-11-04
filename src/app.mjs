@@ -142,6 +142,7 @@ import {
 } from "./camera-overlay.mjs";
 import { EditorSettings, normalizeEditorSettings } from "./settings.mjs";
 import { HotkeyManager, HOTKEY_BY_ID, isHotkeyInput } from "./hotkeys.mjs";
+import { AgentDispatcher } from "./agent-bridge/dispatcher.mjs";
 import { hotkeyCommandId, refreshHotkeyHints } from "./hotkey-hints.mjs";
 import { runTimelineHotkey } from "./timeline-hotkeys.mjs";
 
@@ -6382,6 +6383,7 @@ async function init() {
       queueUI();
       // The view toggles show their state at once, during playback too (the stage header's surface waits).
       syncStageHead();
+      if (patch.agentBridge !== undefined && desktop?.setAgentBridge) void desktop.setAgentBridge(patch.agentBridge);
     },
     onPersist: desktop?.setEditorSettings
       ? (value) => desktop.setEditorSettings(value)
@@ -6394,6 +6396,21 @@ async function init() {
   state.settings = editorSettings.value;
   // Home shows first, over the editor that goes on starting behind it, unless the launch or the person's setting says otherwise.
   home.start();
+  // The agent bridge (docs/AGENT-BRIDGE.md): a person's opt-in Settings toggle
+  // relays loopback messages through the same registry clicks run.
+  const agentBridgeDispatcher = new AgentDispatcher({registry: commands, editor});
+  const agentBridgeCallback = (message) => agentBridgeDispatcher.handle(message ?? {});
+  window.styk.agentBridge = {
+    dispatch: agentBridgeCallback,
+    status: () => Boolean(window.stykDesktop?.agentBridgeState),
+  };
+  if (desktop?.onAgentBridgeMessage && desktop?.sendAgentBridgeMessage) {
+    desktop.onAgentBridgeMessage(({connId, message}) => {
+      const reply = agentBridgeCallback(message);
+      desktop.sendAgentBridgeMessage({connId, reply});
+    });
+    if (state.settings.agentBridge && desktop?.setAgentBridge) void desktop.setAgentBridge(true);
+  }
   // The touch interface (docs/TOUCH.md): decided before the shell lays out, kept current as the window turns.
   touchMode = installTouchMode({ getSetting: () => state.settings.touchInterface });
   window.styk.touch = touchMode;

@@ -1,4 +1,4 @@
-import {BRIDGE_NAME, BRIDGE_SCHEMA} from './host.mjs';
+import {BRIDGE_NAME, BRIDGE_SCHEMA} from './constants.mjs';
 
 export const AGENT_OPS = Object.freeze(['list', 'invoke', 'undo', 'redo']);
 export const AGENT_SOURCE = 'agent';

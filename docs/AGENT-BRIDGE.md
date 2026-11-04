@@ -1,6 +1,6 @@
 # Agent bridge (design)
 
-*Status: bridge transport implemented; contract dispatcher and app wiring not yet. This document records the intended contract so it can be reviewed as the bridge grows.*
+*Status: transport, dispatcher and desktop wiring implemented; the render/snapshot observe paths are the next milestone. See the milestone sections for what exists.*
 
 ## Milestone 1 — transport host (implemented)
 
@@ -20,15 +20,35 @@ Tests: `npm run test:agent-bridge` (alias `tests/agent-bridge-host.test.mjs`), c
 
 Tests: `tests/agent-bridge-manifest.test.mjs` verifies the mirror is exact (ids, order, fields, scopes valid per `HOTKEY_SCOPES`), that duplicate ids are rejected, and that the hello reply carries the manifest.
 
+## Milestone 3 — dispatcher and desktop wiring (implemented)
+
+`src/agent-bridge/dispatcher.mjs` (`AgentDispatcher`) turns bridge messages into registry operations: `list` returns every registry command with live availability and reason strings, `invoke` runs one command the way a click would (`source: 'agent'`), `undo`/`redo` route through their own commands, and `render`/`snapshot`/`events` answer a clean "not supported yet" until the observe milestone. An unavailable command never reaches `run`; replies echo `seq` and carry editor status (`revision`, `canUndo`, `canRedo`, `historyDepth` — a new public `Editor` getter).
+
+Shared constants moved to `src/agent-bridge/constants.mjs` so renderer-side modules never import `ws` (the desktop-only dependency stays in `host.mjs`).
+
+Desktop wiring keeps the app's boundary shape:
+
+- `desktop/main.cjs` starts and stops the host from the person's toggle, tags each connection with an id and relays messages to the workspace over `styk:agent-bridge-*` IPC handlers that keep the existing `trusted(event)` origin check. The token never crosses to the renderer; the hello reply is answered by the transport itself.
+- `desktop/preload.cjs` exposes five narrow functions (`setAgentBridge`, `agentBridgeState`, `sendAgentBridgeMessage`, `onAgentBridgeMessage`, `onAgentBridgeClosed`) and nothing else.
+- `src/app.mjs` builds one dispatcher over the app's own command registry and relays replies; the toggle flows through `EditorSettings.onChange`. The bridge is desktop-only: the Settings row (Interface → Assistant connection) does not render in a browser.
+- `src/settings.mjs` adds the off-by-default `agentBridge` boolean to the persisted settings; `src/locales/en-features/settings.mjs` has its words.
+
+Tests: `tests/agent-bridge-dispatcher.test.mjs` covers the list/invoke/undo/redo surface, the unavailable and failure paths, and that malformed or pending messages run nothing.
+
 ### Removal and porting
 
 Everything the bridge owns lives in one place, so deleting it is mechanical:
 
 | Owner | What |
 | --- | --- |
-| `src/agent-bridge/` | The whole module; nothing else imports it yet |
-| `tests/agent-bridge-host.test.mjs`, `tests/agent-bridge-manifest.test.mjs` | Its tests |
+| `src/agent-bridge/` | The whole module; the editor never imports it |
+| `tests/agent-bridge-*.test.mjs` | Its tests |
 | `package.json` | `ws` in dependencies and the `test:agent-bridge` script |
+| `desktop/main.cjs` | The host lifecycle and relay handlers (`agentBridge*` functions, `styk:agent-bridge-*` IPC, one `will-quit` hook) |
+| `desktop/preload.cjs` | The five `agent-bridge` bridge functions in `stykDesktop` |
+| `src/app.mjs` | The `agentBridge*` glue right after `home.start()` and one `agentBridge` line in the settings change handler |
+| `src/settings.mjs` | The `agentBridge` default and persisted-key entry |
+| `src/locales/en-features/settings.mjs` | Three `settings.assistant`/`settings.agentBridge*` messages |
 
 Future wiring (settings toggle, dispatcher registration in `app.mjs`) lands as additive hooks listed in this table, so the app never carries a sprawl of bridge conditions. Deleting the module, its test file and those hooks restores the exact upstream behavior and keeps fork merges conflict-free.
 

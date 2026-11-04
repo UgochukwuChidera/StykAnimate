@@ -198,4 +198,12 @@ contextBridge.exposeInMainWorld('stykDesktop', Object.freeze({
   onOpenFile: (callback) => subscribe('styk:file-opened', callback),
   onWindowState: (callback) => subscribe('styk:window-state', callback),
   onBackendError: (callback) => subscribe('styk:backend-error', callback),
+  // The agent bridge (docs/AGENT-BRIDGE.md): enable starts a loopback listener in
+  // main; messages relay between that listener and the editor's dispatcher. The
+  // connection token never crosses this boundary.
+  setAgentBridge: (enabled) => ipcRenderer.invoke(enabled ? 'styk:agent-bridge-enable' : 'styk:agent-bridge-disable'),
+  agentBridgeState: () => ipcRenderer.invoke('styk:agent-bridge-state'),
+  sendAgentBridgeMessage: (payload) => ipcRenderer.invoke('styk:agent-bridge-send', payload),
+  onAgentBridgeMessage: (callback) => subscribe('styk:agent-bridge-message', callback),
+  onAgentBridgeClosed: (callback) => subscribe('styk:agent-bridge-closed', callback),
 }));

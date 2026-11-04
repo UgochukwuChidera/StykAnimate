@@ -88,6 +88,7 @@ export const DEFAULT_EDITOR_SETTINGS = Object.freeze({
   autoKey: false,
   loopPlayback: true,
   fitViewOnPlayback: true,
+  agentBridge: false,
   playbackQuality: 'normal',
   rendererMode: "auto",
   autosaveSeconds: 2.5,
@@ -158,6 +159,7 @@ export function normalizeEditorSettings(value = {}) {
     "autoKey",
     "loopPlayback",
     "fitViewOnPlayback",
+    "agentBridge",
     "showHomeOnStartup",
   ])
     if (typeof value?.[key] === "boolean") result[key] = value[key];
@@ -622,9 +624,13 @@ export class EditorSettings {
       const touch = this.group(say("settings.touch"),
         this.select(say("settings.touchInterface"), 'touchInterface', [messageTuple(['auto', say("settings.touchAuto")], {1: {key: "settings.touchAuto", params: {}}}), messageTuple(['on', say("settings.touchOn")], {1: {key: "settings.touchOn", params: {}}}), messageTuple(['off', say("settings.touchOff")], {1: {key: "settings.touchOff", params: {}}})], say("settings.touchInterfaceNote"))
         + this.select(say("settings.fingerDraw"), 'fingerDraw', [messageTuple(['auto', say("settings.fingerDrawAuto")], {1: {key: "settings.fingerDrawAuto", params: {}}}), messageTuple(['always', say("settings.fingerDrawAlways")], {1: {key: "settings.fingerDrawAlways", params: {}}}), messageTuple(['never', say("settings.fingerDrawNever")], {1: {key: "settings.fingerDrawNever", params: {}}})], say("settings.fingerDrawNote")));
+      const assistant = window.stykDesktop?.setAgentBridge
+        ? this.group(say("settings.assistant"), this.checkbox(say("settings.agentBridge"), 'agentBridge', say("settings.agentBridgeNote")))
+        : "";
       return this.group(this.t("settings.appearance"), themes + language + coverage + this.scaleControl())
         + this.group(say("settings.startup"), this.checkbox(say("settings.showHomeOnStartup"), 'showHomeOnStartup', say("settings.showHomeOnStartupNote")))
         + touch
+        + assistant
         + this.group(this.t('timeline.title'), timeline)
         + workspace;
     }

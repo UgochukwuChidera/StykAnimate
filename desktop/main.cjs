@@ -15,6 +15,7 @@ const { SharedClipboard } = require('./shared-clipboard.cjs');
 const { workspaceDirectory } = require('./workspace-instance.cjs');
 const { spawn } = require('node:child_process');
 const { randomBytes } = require('node:crypto');
+const { pathToFileURL } = require('node:url');
 const { WorkspacePreferences } = require('./preferences.cjs');
 const { SupportService } = require('./support.cjs');
 const { ProjectFiles } = require('./project-files.cjs');
@@ -261,6 +262,39 @@ function unsavedPrompt({ restart = false } = {}) {
   };
 }
 
+let agentBridge = null;
+async function agentBridgeEnable() {
+  if (agentBridge?.host?.running) return {running: true, port: agentBridge.host.port};
+  const bridgeRoot = app.isPackaged ? path.join(process.resourcesPath, 'web', 'src') : path.join(APP_ROOT, 'src');
+  const {AgentBridgeHost} = await import(pathToFileURL(path.join(bridgeRoot, 'agent-bridge', 'host.mjs')).href);
+  const connections = new Map();
+  let nextConnection = 1;
+  const host = new AgentBridgeHost({
+    appVersion: app.getVersion(),
+    onAuthenticated: ws => {
+      const connId = nextConnection++;
+      ws._agentConnId = connId;
+      connections.set(connId, ws);
+      ws.on('close', () => {
+        connections.delete(connId);
+        if (window && !window.isDestroyed()) window.webContents.send('styk:agent-bridge-closed', {connId});
+      });
+    },
+    onMessage: (ws, message) => {
+      if (message?.op === 'hello' || !window || window.isDestroyed() || typeof ws._agentConnId !== 'number') return;
+      window.webContents.send('styk:agent-bridge-message', {connId: ws._agentConnId, message});
+    },
+  });
+  await host.start();
+  agentBridge = {host, connections};
+  return {running: true, port: host.port};
+}
+function agentBridgeStop() {
+  const bridge = agentBridge;
+  agentBridge = null;
+  return bridge ? bridge.host.stop() : Promise.resolve();
+}
+
 function registerIpc() {
   handle('styk:update-state', event => { trusted(event); return updates.snapshot(); });
   handle('styk:update-check', event => { trusted(event); void updates.check(); return updates.snapshot(); });
@@ -328,6 +362,15 @@ function registerIpc() {
     if (result.canceled || !result.filePath) return { saved: false };
     await fs.writeFile(result.filePath, JSON.stringify(telemetry.preview(), null, 2), 'utf8'); return { saved: true };
   }));
+  handle('styk:agent-bridge-enable', async event => { trusted(event); return agentBridgeEnable(); });
+  handle('styk:agent-bridge-disable', event => { trusted(event); return agentBridgeStop(); });
+  handle('styk:agent-bridge-state', event => { trusted(event); return {running: Boolean(agentBridge?.host?.running), port: agentBridge?.host?.port ?? null}; });
+  handle('styk:agent-bridge-send', (event, payload) => {
+    trusted(event);
+    const socket = agentBridge?.connections?.get(payload?.connId);
+    if (socket && payload?.reply && typeof payload.reply === 'object') agentBridge.host.send(socket, payload.reply);
+    return Boolean(socket);
+  });
   handle('styk:service-page', withTelemetry(page => {
     const route = { home: '/', download: '/download/' }[page];
     if (!route) throw messageError(new Error(''), 'desktop.main.errors.unknownStykAnimatePage', {});
@@ -909,5 +952,6 @@ app.on('before-quit', (event) => {
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 app.on('will-quit', () => updates?.dispose());
+app.on('will-quit', () => { void agentBridgeStop(); });
 app.on('will-quit', () => { backend?.stop(); library?.dispose().catch(() => {}); fileStreams?.dispose().catch(() => {}); videoExports?.dispose().catch(() => {}); vfwExports?.dispose().catch(() => {}); audioImports?.dispose().catch(() => {}); });
 process.on('exit', () => backend?.stop());

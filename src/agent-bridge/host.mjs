@@ -4,14 +4,9 @@ import os from 'node:os';
 import http from 'node:http';
 import crypto from 'node:crypto';
 import {WebSocketServer} from 'ws';
+import {BRIDGE_NAME, BRIDGE_SCHEMA, CLOSE_PROTOCOL, CLOSE_UNAUTHORIZED, CLOSE_LOCKED_OUT, CLOSE_SCHEMA} from './constants.mjs';
 
-export const BRIDGE_NAME = 'styk-agent';
-export const BRIDGE_SCHEMA = 1;
-
-export const CLOSE_PROTOCOL = 4400;
-export const CLOSE_UNAUTHORIZED = 4401;
-export const CLOSE_LOCKED_OUT = 4403;
-export const CLOSE_SCHEMA = 4409;
+export {BRIDGE_NAME, BRIDGE_SCHEMA, CLOSE_PROTOCOL, CLOSE_UNAUTHORIZED, CLOSE_LOCKED_OUT, CLOSE_SCHEMA};
 
 const DEFAULTS = Object.freeze({
   authTimeout: 5000,
@@ -214,6 +209,11 @@ export class AgentBridgeHost {
     const context = {ip, hello};
     this.options.onMessage?.(ws, hello, context);
     this.options.onAuthenticated?.(ws, hello, context);
+    ws.on('message', data => {
+      let parsed = null;
+      try { parsed = JSON.parse(data.toString()); } catch { return; }
+      this.options.onMessage?.(ws, parsed, context);
+    });
     const reply = {ok: true, bridge: BRIDGE_NAME, schema: BRIDGE_SCHEMA, pid: process.pid, version: this.options.appVersion};
     if (this.options.manifest) reply.manifest = this.options.manifest;
     this.send(ws, reply);

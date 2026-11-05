@@ -161,6 +161,24 @@ try {
   check('Render returns a PNG data URL of a real frame',
     render.ok === true && image.startsWith('data:image/png;base64,') && image.length >= 500);
 
+  const snapshotFigure = snapshot.document.objects[0];
+  const posedValue = snapshotFigure.root_x + 40;
+  const pose = await bridge.ask({op: 'pose', seq: 7, poses: [{
+    figure: snapshotFigure.unique_id, frame: 1, root_x: posedValue,
+  }]});
+  check('Pose accepts one flat-field pose edit and answers applied:1',
+    pose.ok === true && pose.applied === 1);
+  const readRoot = () => page.evaluate(uid => styk.editor.evaluatedFrame.objects
+    .find(object => object.unique_id === uid).root_x, snapshotFigure.unique_id);
+  const afterPose = await readRoot();
+  check('The posed figure moved its root by the patched amount on the stage',
+    Math.abs(afterPose - posedValue) < 1e-9);
+
+  const poseUndo = await bridge.ask({op: 'invoke', command: 'undo', seq: 8});
+  const reverted = await readRoot();
+  check('One undo through the bridge moves the posed figure back',
+    poseUndo.ok === true && Math.abs(reverted - snapshotFigure.root_x) < 1e-9);
+
   await page.evaluate(() => styk.settingsUI.commit({agentBridge: false}));
   await waitUntil(async () => !(await record(pid)), 'the record removal after the toggle off');
   check('Toggling off removes this instance\u2019s record', !(await record(pid)));

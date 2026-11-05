@@ -1014,6 +1014,44 @@ export class Editor extends EventTarget {
     const frames = selected.map(index => clone(this.report.keyframes[index]));
     return this._rangesEdit('Reverse keyframes', selected.map((index, i) => ({index, before: [frames[i]], after: [frames[frames.length - i - 1]]})));
   }
+  /** Numeric per-figure posing across stored keyframes: one batch, one undo step.
+   * Edits are {unique_id, frame (1-based into keyframes), patch}; everything is
+   * validated before any document state moves, so a bad batch changes nothing. */
+  setFigurePoses(edits, label = 'Agent pose') {
+    if (!Array.isArray(edits) || !edits.length || edits.length > 512) throw messageError(new Error(''), "errors.editor.choose1To512FigurePoses", {});
+    const poseFields = ['root_x', 'root_y', 'scale', 'field28', 'color_override_raw'], identityFields = ['unique_id', 'figure_type_id', 'object_slot', 'join'];
+    const grouped = new Map();
+    for (const edit of edits) {
+      if (!edit || typeof edit !== 'object' || !edit.patch || typeof edit.patch !== 'object') throw messageError(new Error(''), "errors.editor.eachPoseNeedsAFigureAFrameAndAPatch", {});
+      if (!Number.isInteger(edit.unique_id)) throw messageError(new Error(''), "errors.editor.useStructuralOperationsToChangeFigureIdentityOr", {});
+      if (!Number.isInteger(edit.frame) || edit.frame < 1 || edit.frame > this.report.keyframes.length) throw messageError(new Error(''), "errors.editor.selectExistingKeyframes", {});
+      for (const key of Object.keys(edit.patch)) {
+        if (identityFields.includes(key)) throw messageError(new Error(''), "errors.editor.useStructuralOperationsToChangeFigureIdentityOr", {});
+        if (!poseFields.includes(key)) throw messageError(new Error(''), "errors.editor.aPoseEditsOnlyRootPositionScaleOpacityOrColor", {});
+      }
+      for (const field of ['root_x', 'root_y', 'scale']) if (field in edit.patch) finite(edit.patch[field], field);
+      if ('scale' in edit.patch && edit.patch.scale < 0) throw messageError(new Error(''), "errors.editor.scaleCannotBeNegative", {});
+      if ('field28' in edit.patch && (!Number.isInteger(edit.patch.field28) || edit.patch.field28 < 0 || edit.patch.field28 > 255)) throw messageError(new Error(''), "errors.editor.opacityMustBeAByte", {});
+      if (!this.report.keyframes[edit.frame - 1].objects.some(object => object.unique_id === edit.unique_id))
+        throw messageError(new Error(''), "errors.editor.theFigureIsNotInKeyframe", {frame: edit.frame});
+      const index = edit.frame - 1;
+      (grouped.get(index) ?? grouped.set(index, []).get(index)).push(edit);
+    }
+    const changes = [];
+    for (const [index, frameEdits] of [...grouped].sort((a, b) => a[0] - b[0])) {
+      const before = clone(this.report.keyframes[index]), after = clone(before);
+      for (const edit of frameEdits) {
+        const object = after.objects.find(candidate => candidate.unique_id === edit.unique_id);
+        Object.assign(object, clone(edit.patch)); delete object.runtime_segments;
+      }
+      this._synchronizeAnimationOrigins(after, before.objects);
+      validateScene({...this.report, keyframes: [after]});
+      if (same(before, after)) continue;
+      changes.push({index, before: [before], after: [after]});
+    }
+    if (!changes.length) return false;
+    return this._rangesEdit(label, changes, {retainSelection: true, structural: false, timing: false});
+  }
   deleteFrame() {
     if (this.report.keyframes.length === 1) return this.transaction('Clear keyframe', frame => {
       frame.objects = []; frame.object_draw_order = []; frame.object_draw_order_unique_ids = []; this.selectedUid = null;

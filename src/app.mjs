@@ -6457,6 +6457,27 @@ async function init() {
       goToFrame(frame);
       return {ok: true, frame: Math.min(frame, editor.totalTicks || frame), status: agentBridgeStatus()};
     },
+    pose(message) {
+      const poses = message?.poses;
+      if (!Array.isArray(poses) || !poses.length) return {ok: false, error: 'poses must be a non-empty array of {figure, frame, patch...}'};
+      const poseFields = ['root_x', 'root_y', 'scale', 'field28', 'color_override_raw'];
+      const edits = [];
+      try {
+        for (const pose of poses) {
+          if (!pose || typeof pose !== 'object' || !Number.isInteger(pose.figure))
+            throw new Error('poses must be a non-empty array of {figure, frame, patch...}');
+          // A pose entry may carry its own patch object, the flat allowed
+          // fields, or both; anything else on the wire is ignored.
+          const flat = pose.patch && typeof pose.patch === 'object' ? {...pose.patch, ...pose} : pose;
+          const patch = Object.fromEntries(poseFields.filter(field => flat[field] !== undefined).map(field => [field, flat[field]]));
+          edits.push({unique_id: pose.figure, frame: pose.frame, patch});
+        }
+        const applied = editor.setFigurePoses(edits, 'Agent pose');
+        return {ok: true, applied: applied ? edits.length : 0, status: agentBridgeStatus()};
+      } catch (error) {
+        return {ok: false, error: String(error?.message ?? error), reason: 'invalid pose'};
+      }
+    },
     events(message, {connId} = {}) {
       if (message?.unsubscribe) {
         agentBridgeEvents.get(connId)?.();

@@ -117,6 +117,30 @@ test('injected handlers answer their ops with the envelope filled in', async () 
   assert.ok(dispatcher.ops().includes('snapshot'));
 });
 
+test('pose routes to its handler like the other editor ops', () => {
+  const seen = [];
+  const dispatcher = new AgentDispatcher({registry: fakeRegistry(), handlers: {
+    pose: message => { seen.push(message); return {ok: true, applied: 1, status: {revision: 42}}; },
+  }});
+  const message = {op: 'pose', seq: 4, poses: [{figure: 1, frame: 2, root_x: 30}]};
+  const reply = dispatcher.handle(message);
+  assert.deepEqual(seen, [message]);
+  assert.equal(reply.ok, true);
+  assert.equal(reply.seq, 4);
+  assert.equal(reply.applied, 1);
+  assert.ok(dispatcher.ops().includes('pose'));
+});
+
+test('a failed pose handler still answers a clean envelope', () => {
+  const dispatcher = new AgentDispatcher({registry: fakeRegistry(), handlers: {
+    pose: message => ({ok: false, error: 'The figure is not in keyframe 2.', reason: 'invalid pose'}),
+  }});
+  const reply = dispatcher.handle({op: 'pose', poses: [{figure: 9, frame: 2, scale: 1}]});
+  assert.equal(reply.ok, false);
+  assert.equal(reply.reason, 'invalid pose');
+  assert.match(reply.error, /keyframe 2/);
+});
+
 test('async handlers resolve and their failures become clean replies', async () => {
   const working = new AgentDispatcher({registry: fakeRegistry(), handlers: {render: async () => ({ok: true, frames: []})}});
   assert.deepEqual((await working.handle({op: 'render', seq: 1})).frames, []);

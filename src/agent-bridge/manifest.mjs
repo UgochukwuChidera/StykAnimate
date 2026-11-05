@@ -1,7 +1,7 @@
 import {BRIDGE_NAME, BRIDGE_SCHEMA} from './constants.mjs';
 import {HOTKEY_COMMANDS, HOTKEY_SCOPES} from '../hotkeys.mjs';
 
-export const BRIDGE_OPS = ['list', 'invoke', 'undo', 'redo', 'render', 'snapshot', 'events'];
+export const BRIDGE_OPS = ['list', 'invoke', 'undo', 'redo', 'pose', 'render', 'snapshot', 'events'];
 
 export function buildManifest(commands = HOTKEY_COMMANDS, ops = BRIDGE_OPS) {
   const seen = new Set();

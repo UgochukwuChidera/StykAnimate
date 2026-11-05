@@ -43,6 +43,7 @@ The dispatcher accepts injected handlers; ops missing a handler stay honest "not
 - `snapshot` returns a bounded overview — revision, tick, total ticks, fps, canvas size, background, layers, selection and up to 512 evaluated objects carrying only whitelisted native fields (`unique_id`, `figure_type_id`, position, scale, colour override, native transparency, and the figure name). No full-document serialization ever runs on this path.
 - `seek` moves the playhead through the app's own `goToFrame` (1-based numbers, the timeline's own numbering).
 - `events` subscribes one connection to editor change narration — throttled to at most one message per 100 ms, carrying revision, dirty state and undo status — and unsubscribes when the socket closes.
+- `pose` applies numeric per-figure posing in one undo step: `{op: 'pose', poses: [...]}` where each entry carries `{figure, frame}` (1-based, and the figure must exist in that frame) plus any of `root_x`, `root_y`, `scale`, `field28`, `color_override_raw` — flat on the entry or inside a `patch` object. The whole batch is validated first, so one bad pose changes nothing and no history entry is recorded; identical poses answer with `applied: 0`. Root-level fields only — joint angles are not supported yet.
 
 Tests: dispatcher delegation, async handler resolution, and failure envelopes are covered in `tests/agent-bridge-dispatcher.test.mjs`.
 
@@ -57,7 +58,7 @@ Everything the bridge owns lives in one place, so deleting it is mechanical:
 | `package.json` | `ws` in dependencies and the `test:agent-bridge` script |
 | `desktop/main.cjs` | The host lifecycle and relay handlers (`agentBridge*` functions, `styk:agent-bridge-*` IPC, one `will-quit` hook) |
 | `desktop/preload.cjs` | The five `agent-bridge` bridge functions in `stykDesktop` |
-| `src/app.mjs` | The `agentBridge*` glue right after `home.start()` (including the render/snapshot/seek/events handlers) and one `agentBridge` line in the settings change handler |
+| `src/app.mjs` | The `agentBridge*` glue right after `home.start()` (including the pose/render/snapshot/seek/events handlers) and one `agentBridge` line in the settings change handler |
 | `src/settings.mjs` | The `agentBridge` default and persisted-key entry |
 | `src/locales/en-features/settings.mjs` | Three `settings.assistant`/`settings.agentBridge*` messages |
 
@@ -111,7 +112,7 @@ One message in, one outcome out. Every mutation is a history entry, so agent mis
     "changedFrames": [4, 5], "historyDepth": 7 }
 ```
 
-`historyDepth` counts undo steps, letting an agent measure and roll back its own attempts. Undo and redo are ordinary operations. The desktop build also answers `seek` (1-based frame), `snapshot` (bounded scene overview), `render` (frame previews as PNG data URLs) and `events` (edit narration per connection).
+`historyDepth` counts undo steps, letting an agent measure and roll back its own attempts. Undo and redo are ordinary operations. The desktop build also answers `pose` (batched numeric figure posing, one undo step), `seek` (1-based frame), `snapshot` (bounded scene overview), `render` (frame previews as PNG data URLs) and `events` (edit narration per connection).
 
 ### 3. Observe
 

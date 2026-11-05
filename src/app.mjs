@@ -6447,7 +6447,7 @@ async function init() {
         objects: (editor.evaluatedFrame?.objects ?? []).slice(0, 512).map(object => (Object.fromEntries(
           ['unique_id', 'figure_type_id', 'root_x', 'root_y', 'scale', 'color_override_raw', 'field28']
             .filter(field => object[field] !== undefined)
-            .map(field => [field, object[field]]).concat([['name', nameOf(object)]])
+            .map(field => [field, object[field]]).concat([['name', nameOf(object)], ['angles', [...(object.angles ?? [])]]])
         ))),
       }, status: agentBridgeStatus()};
     },
@@ -6476,6 +6476,27 @@ async function init() {
         return {ok: true, applied: applied ? edits.length : 0, status: agentBridgeStatus()};
       } catch (error) {
         return {ok: false, error: String(error?.message ?? error), reason: 'invalid pose'};
+      }
+    },
+    joints(message) {
+      const edits = message?.edits;
+      if (!Array.isArray(edits) || !edits.length) return {ok: false, error: 'joints must be a non-empty array of {figure, frame, joint, angle_rad/length/bend_rad...}'};
+      const jointFields = ['angle_rad', 'length', 'bend_rad'];
+      const batch = [];
+      try {
+        for (const edit of edits) {
+          if (!edit || typeof edit !== 'object' || !Number.isInteger(edit.figure) || !Number.isInteger(edit.joint))
+            throw new Error('joints must be a non-empty array of {figure, frame, joint, angle_rad/length/bend_rad...}');
+          // A joint entry may carry its own patch object, the flat allowed
+          // fields, or both; anything else on the wire is ignored.
+          const flat = edit.patch && typeof edit.patch === 'object' ? {...edit.patch, ...edit} : edit;
+          const patch = Object.fromEntries(jointFields.filter(field => flat[field] !== undefined).map(field => [field, flat[field]]));
+          batch.push({unique_id: edit.figure, frame: edit.frame, joint: edit.joint, patch});
+        }
+        const applied = editor.setFigureJoints(batch, 'Agent pose');
+        return {ok: true, applied: applied ? batch.length : 0, status: agentBridgeStatus()};
+      } catch (error) {
+        return {ok: false, error: String(error?.message ?? error), reason: 'invalid joint pose'};
       }
     },
     events(message, {connId} = {}) {

@@ -1052,6 +1052,84 @@ export class Editor extends EventTarget {
     if (!changes.length) return false;
     return this._rangesEdit(label, changes, {retainSelection: true, structural: false, timing: false});
   }
+  /** Numeric per-figure joint posing across stored keyframes: one batch, one undo step.
+   * Edits are {unique_id, frame (1-based into keyframes), joint (0-based segment index),
+   * patch of angle_rad/bend_rad/length}; everything is validated before any document
+   * state moves, so a bad batch changes nothing. Angle and bend are absolute sets
+   * applied exactly like the app's own "Edit joint" path; the rotation subtree follows,
+   * but IK-following controllers (a drag-only bookkeeping) are not updated here. */
+  setFigureJoints(edits, label = 'Agent pose') {
+    if (!Array.isArray(edits) || !edits.length || edits.length > 512) throw messageError(new Error(''), "errors.editor.choose1To512FigureJoints", {});
+    const jointFields = ['angle_rad', 'length', 'bend_rad'], grouped = new Map();
+    for (const edit of edits) {
+      if (!edit || typeof edit !== 'object' || !edit.patch || typeof edit.patch !== 'object') throw messageError(new Error(''), "errors.editor.eachJointNeedsAFigureAFrameAJointAndAChange", {});
+      if (!Number.isInteger(edit.unique_id)) throw messageError(new Error(''), "errors.editor.useStructuralOperationsToChangeFigureIdentityOr", {});
+      if (!Number.isInteger(edit.joint) || edit.joint < 0) throw messageError(new Error(''), "errors.editor.chooseAnotherFigureAndAValidJoint", {});
+      if (!Number.isInteger(edit.frame) || edit.frame < 1 || edit.frame > this.report.keyframes.length) throw messageError(new Error(''), "errors.editor.selectExistingKeyframes", {});
+      for (const key of Object.keys(edit.patch)) {
+        if (!jointFields.includes(key)) throw messageError(new Error(''), "errors.editor.aJointEditSetsOnlyTheAngleLengthOrBend", {});
+        finite(edit.patch[key], key);
+      }
+      const object = this.report.keyframes[edit.frame - 1].objects.find(candidate => candidate.unique_id === edit.unique_id);
+      if (!object) throw messageError(new Error(''), "errors.editor.theFigureIsNotInKeyframe", {frame: edit.frame});
+      const fig = this.report.figure_types.find(candidate => candidate.figure_type_id === object.figure_type_id);
+      if (!fig || edit.joint >= fig.segments.length || !fig.segments[edit.joint]) throw messageError(new Error(''), "errors.editor.theJointIsNotInFigure", {figure: edit.unique_id});
+      if ('length' in edit.patch && (edit.patch.length < 0 || fig.segments[edit.joint]._stykRig?.connector && edit.patch.length > 1))
+        throw messageError(new Error(''), "errors.editor.connectorPositionMustBe01SegmentLengths", {});
+      const index = edit.frame - 1;
+      (grouped.get(index) ?? grouped.set(index, []).get(index)).push(edit);
+    }
+    const changes = [];
+    for (const [index, frameEdits] of [...grouped].sort((a, b) => a[0] - b[0])) {
+      const before = clone(this.report.keyframes[index]), after = clone(before);
+      for (const edit of frameEdits) {
+        const object = after.objects.find(candidate => candidate.unique_id === edit.unique_id);
+        const slot = after.objects.indexOf(object), joint = edit.joint, patch = edit.patch;
+        const fig = this.report.figure_types.find(candidate => candidate.figure_type_id === object.figure_type_id);
+        // Rotation targets resolve against the clone's own context, mirroring the
+        // authored pose path that hands rotationEdits a one-frame report.
+        const targets = rotationEdits({...this.report, keyframes: [after]}, 0, slot, joint, 0, true).map(change => {
+          const tokens = change.path.split('/'); return [Number(tokens[4]), Number(tokens[6])];
+        });
+        if ('angle_rad' in patch && !fig.segments[joint]._stykRig?.angleLock)
+          this._applyJointRotationTargets(targets, patch.angle_rad - object.angles[joint], slot, after);
+        if ('length' in patch) {
+          if (!object.len_flag) object.lengths = fig.segments.map(segment => segment.length);
+          object.len_flag = 1; object.lengths[joint] = patch.length;
+        }
+        if ('bend_rad' in patch) {
+          const previous = object.bend_flag ? object.bends[joint] : (fig.segments[joint].bend_rad ?? 0);
+          const bendTargets = targets.filter(([targetSlot, segment]) => targetSlot !== slot || segment !== joint);
+          this._applyJointRotationTargets(bendTargets, patch.bend_rad - previous, slot, after);
+          if (!object.bend_flag) object.bends = fig.segments.map(segment => segment.bend_rad ?? 0);
+          object.bend_flag = 1; object.bends[joint] = patch.bend_rad;
+        }
+        delete object.runtime_segments;
+      }
+      this._synchronizeAnimationOrigins(after, before.objects);
+      validateScene({...this.report, keyframes: [after]});
+      if (same(before, after)) continue;
+      changes.push({index, before: [before], after: [after]});
+    }
+    if (!changes.length) return false;
+    return this._rangesEdit(label, changes, {retainSelection: true, structural: false, timing: false});
+  }
+  /** `_applyJointRotation` on an arbitrary frame clone: rotate the rotation
+   * subtree by delta and carry cross-object origin support with it. IK followers
+   * never move here: they only react while a pointer drag replays (see
+   * `_rotateIKFollowers`, which early-returns without `this._drag` before data). */
+  _applyJointRotationTargets(targets, delta, slot, frame) {
+    if (!delta) return;
+    const children = new Set();
+    for (const [objectSlot, segment] of targets) {
+      frame.objects[objectSlot].angles[segment] += delta;
+      if (objectSlot !== slot) children.add(objectSlot);
+    }
+    for (const childSlot of children) {
+      const child = frame.objects[childSlot];
+      rotateOriginSupport(this.report.figure_types.find(figure => figure.figure_type_id === child.figure_type_id), child, delta);
+    }
+  }
   deleteFrame() {
     if (this.report.keyframes.length === 1) return this.transaction('Clear keyframe', frame => {
       frame.objects = []; frame.object_draw_order = []; frame.object_draw_order_unique_ids = []; this.selectedUid = null;
